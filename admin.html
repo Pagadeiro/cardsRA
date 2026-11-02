@@ -85,20 +85,22 @@
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     // ============================================================
-    // 🔧 SUBSTITUA AQUI PELAS SUAS CONFIGURAÇÕES
+    // 🔧 CONFIGURAÇÕES DO FIREBASE
     // ============================================================
     const firebaseConfig = {
-        apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
-        authDomain: "cardsra.firebaseapp.com",
-        projectId: "cardsra",
-        storageBucket: "cardsra.firebasestorage.app",
-        messagingSenderId: "815134338089",
-        appId: "1:815134338089:web:30500a2c42cd3be9550038"
+        apiKey: "COLE_AQUI_SUA_API_KEY",
+        authDomain: "COLE_AQUI_SEU_AUTH_DOMAIN",
+        projectId: "COLE_AQUI_SEU_PROJECT_ID",
+        storageBucket: "COLE_AQUI_SEU_STORAGE_BUCKET",
+        messagingSenderId: "COLE_AQUI_SEU_MESSAGING_SENDER_ID",
+        appId: "COLE_AQUI_SEU_APP_ID"
     };
 
-    const UPSTASH_TOKEN = "AgAkADAMNjdmODQ4ODYtZGIzMi00OGVjLWIyYTYtNjJkM2JlMjI2MmJlT1Rkak9ETXlZekV0WWpReE5TMDBOVGhpTFdGaU1tRXRabU0zTnpRek9EUTVNbVV4YjVhZWE2N2FkMGFl";
-    const UPSTASH_BUCKET = "COLE_AQUI_SEU_BUCKET"; // ex: "meus-cards-AR"
     // ============================================================
+    // 🔧 CONFIGURAÇÕES DO CLOUDINARY
+    // ============================================================
+    const CLOUD_NAME = "hexnmyhmi";
+    const UPLOAD_PRESET = "meus-cards-AR";
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -139,26 +141,31 @@
     });
 
     // ============================================================
-    // UPLOAD PARA UPSTASH (via API REST)
+    // UPLOAD PARA CLOUDINARY
     // ============================================================
-    async function uploadParaUpstash(arquivo, caminho) {
-        // A API REST do Upstash aceita PUT direto no endpoint do bucket
-        const url = `https://${UPSTASH_BUCKET}.blob.upstash.io/${caminho}`;
+    async function uploadParaCloudinary(arquivo, tipo) {
+        // O Cloudinary precisa saber o tipo do arquivo para tratar corretamente.
+        // .mind é tratado como 'raw' e .glb como 'image' (para não ser otimizado).
+        const resourceType = (tipo === 'mind') ? 'raw' : 'image';
+        
+        const formData = new FormData();
+        formData.append('file', arquivo);
+        formData.append('upload_preset', UPLOAD_PRESET);
+
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+
         const resposta = await fetch(url, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${UPSTASH_TOKEN}`,
-                'Content-Type': 'application/octet-stream',
-                'x-upsert': 'true' // permite sobrescrever
-            },
-            body: arquivo
+            method: 'POST',
+            body: formData
         });
+
         if (!resposta.ok) {
-            const texto = await resposta.text();
-            throw new Error(`Upstash ${resposta.status}: ${texto}`);
+            const erro = await resposta.json();
+            throw new Error(`Cloudinary: ${erro.error?.message || 'Erro desconhecido'}`);
         }
-        // URL pública do arquivo
-        return url;
+
+        const dados = await resposta.json();
+        return dados.secure_url; // URL pública do arquivo
     }
 
     window.enviarProduto = async function() {
@@ -179,16 +186,13 @@
         msg.textContent = 'Enviando arquivos...';
 
         try {
-            // Gera um ID único para o produto (timestamp + random)
             const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-            const caminhoMind = `ar/${id}/target.mind`;
-            const caminhoGlb = `ar/${id}/model.glb`;
 
             msg.textContent = 'Enviando .mind...';
-            const urlMind = await uploadParaUpstash(mindFile, caminhoMind);
+            const urlMind = await uploadParaCloudinary(mindFile, 'mind');
 
             msg.textContent = 'Enviando .glb...';
-            const urlGlb = await uploadParaUpstash(glbFile, caminhoGlb);
+            const urlGlb = await uploadParaCloudinary(glbFile, 'glb');
 
             msg.textContent = 'Salvando no Firestore...';
             await addDoc(collection(db, 'produtos'), {
