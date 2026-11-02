@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - AR</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { color: #e94560; text-align: center; }
+        .card { background: #16213e; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        label { display: block; margin: 10px 0 5px; font-weight: bold; }
+        input[type="email"], input[type="password"], input[type="text"] {
+            width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #0f3460;
+            background: #0f3460; color: #eee; font-size: 14px;
+        }
+        input[type="file"] { margin: 5px 0 15px; color: #eee; }
+        button {
+            background: #e94560; color: white; border: none; padding: 12px 20px;
+            border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;
+            width: 100%; margin-top: 10px;
+        }
+        button:hover { background: #c73650; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        .msg { padding: 10px; border-radius: 5px; margin: 10px 0; text-align: center; }
+        .msg.ok { background: #1b5e20; }
+        .msg.err { background: #b71c1c; }
+        .hidden { display: none; }
+        .produto-item {
+            background: #0f3460; padding: 15px; border-radius: 8px;
+            margin-bottom: 10px; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .produto-item .info { flex: 1; min-width: 200px; }
+        .produto-item .info small { color: #aaa; word-break: break-all; }
+        .btn-del { background: #b71c1c; width: auto; padding: 8px 15px; font-size: 12px; margin: 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚙️ Painel Admin AR</h1>
+
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="card">
+        <h2>Entrar</h2>
+        <label>E-mail</label>
+        <input type="email" id="login-email" placeholder="seu@email.com">
+        <label>Senha</label>
+        <input type="password" id="login-senha" placeholder="********">
+        <button onclick="fazerLogin()">Entrar</button>
+        <div id="login-msg"></div>
+    </div>
+
+    <!-- PAINEL (só aparece após login) -->
+    <div id="painel-screen" class="hidden">
+        <div class="card">
+            <h2>📤 Cadastrar Novo Produto</h2>
+            <label>Nome do Produto (ex: "Convite Ana e João")</label>
+            <input type="text" id="prod-nome" placeholder="Nome do produto">
+            <label>Arquivo .mind (imagem-alvo)</label>
+            <input type="file" id="prod-mind" accept=".mind">
+            <label>Arquivo .glb (modelo 3D)</label>
+            <input type="file" id="prod-glb" accept=".glb">
+            <button id="btn-upload" onclick="enviarProduto()">Enviar e Salvar</button>
+            <div id="upload-msg"></div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Produtos Cadastrados</h2>
+            <div id="lista-produtos">Carregando...</div>
+        </div>
+
+        <button onclick="fazerLogout()" style="background:#555; margin-top:10px;">Sair</button>
+    </div>
+</div>
+
+<!-- Firebase SDK (v10 modular, via CDN) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // ============================================================
+    // 🔧 SUBSTITUA AQUI PELAS SUAS CONFIGURAÇÕES
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
+        authDomain: "cardsra.firebaseapp.com",
+        projectId: "cardsra",
+        storageBucket: "cardsra.firebasestorage.app",
+        messagingSenderId: "815134338089",
+        appId: "1:815134338089:web:30500a2c42cd3be9550038"
+    };
+
+    const UPSTASH_TOKEN = "AgAkADAMNjdmODQ4ODYtZGIzMi00OGVjLWIyYTYtNjJkM2JlMjI2MmJlT1Rkak9ETXlZekV0WWpReE5TMDBOVGhpTFdGaU1tRXRabU0zTnpRek9EUTVNbVV4YjVhZWE2N2FkMGFl";
+    const UPSTASH_BUCKET = "COLE_AQUI_SEU_BUCKET"; // ex: "meus-cards-AR"
+    // ============================================================
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Expõe funções para os botões HTML
+    window.fazerLogin = async function() {
+        const email = document.getElementById('login-email').value;
+        const senha = document.getElementById('login-senha').value;
+        const msg = document.getElementById('login-msg');
+        msg.className = 'msg';
+        msg.textContent = 'Entrando...';
+        try {
+            await signInWithEmailAndPassword(auth, email, senha);
+            msg.textContent = '';
+        } catch (e) {
+            msg.className = 'msg err';
+            msg.textContent = 'Erro: ' + e.message;
+        }
+    };
+
+    window.fazerLogout = async function() {
+        await signOut(auth);
+    };
+
+    // Observa estado de login
+    onAuthStateChanged(auth, (user) => {
+        const loginScreen = document.getElementById('login-screen');
+        const painelScreen = document.getElementById('painel-screen');
+        if (user) {
+            loginScreen.classList.add('hidden');
+            painelScreen.classList.remove('hidden');
+            carregarProdutos();
+        } else {
+            loginScreen.classList.remove('hidden');
+            painelScreen.classList.add('hidden');
+        }
+    });
+
+    // ============================================================
+    // UPLOAD PARA UPSTASH (via API REST)
+    // ============================================================
+    async function uploadParaUpstash(arquivo, caminho) {
+        // A API REST do Upstash aceita PUT direto no endpoint do bucket
+        const url = `https://${UPSTASH_BUCKET}.blob.upstash.io/${caminho}`;
+        const resposta = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${UPSTASH_TOKEN}`,
+                'Content-Type': 'application/octet-stream',
+                'x-upsert': 'true' // permite sobrescrever
+            },
+            body: arquivo
+        });
+        if (!resposta.ok) {
+            const texto = await resposta.text();
+            throw new Error(`Upstash ${resposta.status}: ${texto}`);
+        }
+        // URL pública do arquivo
+        return url;
+    }
+
+    window.enviarProduto = async function() {
+        const nome = document.getElementById('prod-nome').value.trim();
+        const mindFile = document.getElementById('prod-mind').files[0];
+        const glbFile = document.getElementById('prod-glb').files[0];
+        const btn = document.getElementById('btn-upload');
+        const msg = document.getElementById('upload-msg');
+
+        if (!nome || !mindFile || !glbFile) {
+            msg.className = 'msg err';
+            msg.textContent = 'Preencha nome, .mind e .glb.';
+            return;
+        }
+
+        btn.disabled = true;
+        msg.className = 'msg';
+        msg.textContent = 'Enviando arquivos...';
+
+        try {
+            // Gera um ID único para o produto (timestamp + random)
+            const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            const caminhoMind = `ar/${id}/target.mind`;
+            const caminhoGlb = `ar/${id}/model.glb`;
+
+            msg.textContent = 'Enviando .mind...';
+            const urlMind = await uploadParaUpstash(mindFile, caminhoMind);
+
+            msg.textContent = 'Enviando .glb...';
+            const urlGlb = await uploadParaUpstash(glbFile, caminhoGlb);
+
+            msg.textContent = 'Salvando no Firestore...';
+            await addDoc(collection(db, 'produtos'), {
+                nome: nome,
+                mindUrl: urlMind,
+                glbUrl: urlGlb,
+                criadoEm: new Date().toISOString(),
+                id: id
+            });
+
+            msg.className = 'msg ok';
+            msg.textContent = 'Produto cadastrado com sucesso!';
+            document.getElementById('prod-nome').value = '';
+            document.getElementById('prod-mind').value = '';
+            document.getElementById('prod-glb').value = '';
+            carregarProdutos();
+
+        } catch (e) {
+            msg.className = 'msg err';
+            msg.textContent = 'Erro: ' + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    // ============================================================
+    // LISTAR PRODUTOS
+    // ============================================================
+    async function carregarProdutos() {
+        const lista = document.getElementById('lista-produtos');
+        lista.innerHTML = 'Carregando...';
+        try {
+            const snap = await getDocs(collection(db, 'produtos'));
+            if (snap.empty) {
+                lista.innerHTML = '<p>Nenhum produto cadastrado ainda.</p>';
+                return;
+            }
+            let html = '';
+            snap.forEach((docSnap) => {
+                const d = docSnap.data();
+                html += `
+                    <div class="produto-item">
+                        <div class="info">
+                            <strong>${d.nome}</strong><br>
+                            <small>ID: ${d.id}</small><br>
+                            <small>Mind: ${d.mindUrl}</small><br>
+                            <small>Glb: ${d.glbUrl}</small>
+                        </div>
+                        <button class="btn-del" onclick="deletarProduto('${docSnap.id}')">Excluir</button>
+                    </div>
+                `;
+            });
+            lista.innerHTML = html;
+        } catch (e) {
+            lista.innerHTML = '<p style="color:#e94560;">Erro ao carregar: ' + e.message + '</p>';
+        }
+    }
+
+    window.deletarProduto = async function(docId) {
+        if (!confirm('Excluir este produto?')) return;
+        try {
+            await deleteDoc(doc(db, 'produtos', docId));
+            carregarProdutos();
+        } catch (e) {
+            alert('Erro ao excluir: ' + e.message);
+        }
+    };
+</script>
+
+</body>
+</html>
