@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Admin - AR</title>
+    <title>Painel Admin AR - Upload Direto</title>
     <style>
         * { box-sizing: border-box; font-family: Arial, sans-serif; }
         body { background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }
@@ -15,6 +15,7 @@
             width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #0f3460;
             background: #0f3460; color: #eee; font-size: 14px;
         }
+        input[type="file"] { margin: 5px 0 15px; color: #eee; }
         button {
             background: #e94560; color: white; border: none; padding: 12px 20px;
             border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;
@@ -22,8 +23,6 @@
         }
         button:hover { background: #c73650; }
         button:disabled { background: #555; cursor: not-allowed; }
-        .btn-upload-widget { background: #0f3460; margin-top: 5px; }
-        .btn-upload-widget:hover { background: #1a4a7a; }
         .msg { padding: 10px; border-radius: 5px; margin: 10px 0; text-align: center; }
         .msg.ok { background: #1b5e20; }
         .msg.err { background: #b71c1c; }
@@ -36,17 +35,13 @@
         .produto-item .info { flex: 1; min-width: 200px; }
         .produto-item .info small { color: #aaa; word-break: break-all; }
         .btn-del { background: #b71c1c; width: auto; padding: 8px 15px; font-size: 12px; margin: 0; }
-        .status-url { font-size: 11px; color: #4CAF50; margin-top: 5px; }
     </style>
-    <!-- Script do Widget do Cloudinary -->
-    <script src="https://upload-widget.cloudinary.com/latest/global/all.js" type="text/javascript"></script>
 </head>
 <body>
 
 <div class="container">
     <h1>⚙️ Painel Admin AR</h1>
 
-    <!-- TELA DE LOGIN -->
     <div id="login-screen" class="card">
         <h2>Entrar</h2>
         <label>E-mail</label>
@@ -57,22 +52,16 @@
         <div id="login-msg"></div>
     </div>
 
-    <!-- PAINEL -->
     <div id="painel-screen" class="hidden">
         <div class="card">
             <h2>📤 Cadastrar Novo Produto</h2>
-            <label>Nome do Produto (ex: "Convite Ana e João")</label>
-            <input type="text" id="prod-nome" placeholder="Nome do produto">
-            
-            <label>Arquivo .mind (imagem-alvo)</label>
-            <button class="btn-upload-widget" onclick="abrirWidget('mind')">📁 Selecionar .mind</button>
-            <div id="status-mind" class="status-url"></div>
-
-            <label>Arquivo .glb (modelo 3D)</label>
-            <button class="btn-upload-widget" onclick="abrirWidget('glb')">📁 Selecionar .glb</button>
-            <div id="status-glb" class="status-url"></div>
-
-            <button id="btn-salvar" onclick="salvarProduto()" style="margin-top: 20px;">Salvar Produto no Banco</button>
+            <label>Nome do Produto</label>
+            <input type="text" id="prod-nome" placeholder="Ex: Convite Ana e João">
+            <label>Arquivo .mind</label>
+            <input type="file" id="prod-mind" accept=".mind">
+            <label>Arquivo .glb</label>
+            <input type="file" id="prod-glb" accept=".glb">
+            <button id="btn-upload" onclick="enviarProduto()">Enviar e Salvar</button>
             <div id="upload-msg"></div>
         </div>
 
@@ -92,9 +81,7 @@
     import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // ============================================================
-    // 🔧 COLE AQUI AS SUAS CONFIGURAÇÕES DO FIREBASE
-    // ============================================================
+    // 🔧 COLE AQUI SUA CONFIGURAÇÃO DO FIREBASE (a mesma de antes)
     const firebaseConfig = {
         apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
         authDomain: "cardsra.firebaseapp.com",
@@ -104,9 +91,7 @@
         appId: "1:815134338089:web:30500a2c42cd3be9550038"
     };
 
-    // ============================================================
-    // 🔧 CONFIGURAÇÕES DO CLOUDINARY
-    // ============================================================
+    // 🔧 Cloudinary
     const CLOUD_NAME = "hexnmyhmi";
     const UPLOAD_PRESET = "meus-cards-AR";
 
@@ -114,162 +99,112 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Variáveis para guardar as URLs geradas pelo Widget
-    let urlMindTemp = "";
-    let urlGlbTemp = "";
-
-    // Expõe funções
     window.fazerLogin = async function() {
         const email = document.getElementById('login-email').value;
         const senha = document.getElementById('login-senha').value;
         const msg = document.getElementById('login-msg');
-        msg.className = 'msg';
-        msg.textContent = 'Entrando...';
-        try {
-            await signInWithEmailAndPassword(auth, email, senha);
-            msg.textContent = '';
-        } catch (e) {
-            msg.className = 'msg err';
-            msg.textContent = 'Erro: ' + e.message;
-        }
+        msg.className = 'msg'; msg.textContent = 'Entrando...';
+        try { await signInWithEmailAndPassword(auth, email, senha); msg.textContent = ''; }
+        catch (e) { msg.className = 'msg err'; msg.textContent = 'Erro: ' + e.message; }
     };
 
-    window.fazerLogout = async function() {
-        await signOut(auth);
-    };
+    window.fazerLogout = async function() { await signOut(auth); };
 
     onAuthStateChanged(auth, (user) => {
         const loginScreen = document.getElementById('login-screen');
         const painelScreen = document.getElementById('painel-screen');
-        if (user) {
-            loginScreen.classList.add('hidden');
-            painelScreen.classList.remove('hidden');
-            carregarProdutos();
-        } else {
-            loginScreen.classList.remove('hidden');
-            painelScreen.classList.add('hidden');
-        }
+        if (user) { loginScreen.classList.add('hidden'); painelScreen.classList.remove('hidden'); carregarProdutos(); }
+        else { loginScreen.classList.remove('hidden'); painelScreen.classList.add('hidden'); }
     });
 
     // ============================================================
-    // LÓGICA DO WIDGET CLOUDINARY
+    // UPLOAD DIRETO VIA API (SEM WIDGET)
     // ============================================================
-    window.abrirWidget = function(tipo) {
-        // Configuração do Widget
-        const widget = cloudinary.createUploadWidget({
-            cloudName: CLOUD_NAME,
-            uploadPreset: UPLOAD_PRESET,
-            // O widget já trata o tipo do arquivo automaticamente
-        }, (error, result) => { 
-            if (!error && result && result.event === "success") { 
-                // Quando o upload termina com sucesso
-                const url = result.info.secure_url;
-                
-                if (tipo === 'mind') {
-                    urlMindTemp = url;
-                    document.getElementById('status-mind').textContent = "✅ .mind carregado!";
-                } else if (tipo === 'glb') {
-                    urlGlbTemp = url;
-                    document.getElementById('status-glb').textContent = "✅ .glb carregado!";
-                }
-                console.log('Upload feito:', url);
-            }
-        });
-        widget.open();
-    };
+    async function uploadParaCloudinary(arquivo) {
+        // Força 'raw' para .mind e .glb não serem processados como imagem
+        const formData = new FormData();
+        formData.append('file', arquivo);
+        formData.append('upload_preset', UPLOAD_PRESET);
 
-    // ============================================================
-    // SALVAR NO FIRESTORE
-    // ============================================================
-    window.salvarProduto = async function() {
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`;
+
+        const resposta = await fetch(url, { method: 'POST', body: formData });
+
+        if (!resposta.ok) {
+            const erro = await resposta.json();
+            throw new Error(`Cloudinary: ${erro.error?.message || 'Falha no upload'}`);
+        }
+        const dados = await resposta.json();
+        return dados.secure_url;
+    }
+
+    window.enviarProduto = async function() {
         const nome = document.getElementById('prod-nome').value.trim();
+        const mindFile = document.getElementById('prod-mind').files[0];
+        const glbFile = document.getElementById('prod-glb').files[0];
+        const btn = document.getElementById('btn-upload');
         const msg = document.getElementById('upload-msg');
-        const btn = document.getElementById('btn-salvar');
 
-        if (!nome || !urlMindTemp || !urlGlbTemp) {
-            msg.className = 'msg err';
-            msg.textContent = 'Preencha o nome e selecione AMBOS os arquivos (.mind e .glb).';
+        if (!nome || !mindFile || !glbFile) {
+            msg.className = 'msg err'; msg.textContent = 'Preencha nome, .mind e .glb.';
             return;
         }
 
         btn.disabled = true;
-        msg.className = 'msg';
-        msg.textContent = 'Salvando no banco de dados...';
+        msg.className = 'msg'; msg.textContent = 'Enviando .mind...';
 
         try {
-            const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            const urlMind = await uploadParaCloudinary(mindFile);
+            msg.textContent = 'Enviando .glb...';
+            const urlGlb = await uploadParaCloudinary(glbFile);
+            msg.textContent = 'Salvando no Firestore...';
 
+            const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
             await addDoc(collection(db, 'produtos'), {
                 nome: nome,
-                mindUrl: urlMindTemp,
-                glbUrl: urlGlbTemp,
+                mindUrl: urlMind,
+                glbUrl: urlGlb,
                 criadoEm: new Date().toISOString(),
                 id: id
             });
 
-            msg.className = 'msg ok';
-            msg.textContent = 'Produto cadastrado com sucesso!';
-            
-            // Limpa os campos
+            msg.className = 'msg ok'; msg.textContent = 'Produto cadastrado com sucesso!';
             document.getElementById('prod-nome').value = '';
-            document.getElementById('status-mind').textContent = '';
-            document.getElementById('status-glb').textContent = '';
-            urlMindTemp = "";
-            urlGlbTemp = "";
-            
+            document.getElementById('prod-mind').value = '';
+            document.getElementById('prod-glb').value = '';
             carregarProdutos();
-
         } catch (e) {
-            msg.className = 'msg err';
-            msg.textContent = 'Erro ao salvar: ' + e.message;
+            msg.className = 'msg err'; msg.textContent = 'Erro: ' + e.message;
         } finally {
             btn.disabled = false;
         }
     };
 
-    // ============================================================
-    // LISTAR PRODUTOS
-    // ============================================================
     async function carregarProdutos() {
         const lista = document.getElementById('lista-produtos');
         lista.innerHTML = 'Carregando...';
         try {
             const snap = await getDocs(collection(db, 'produtos'));
-            if (snap.empty) {
-                lista.innerHTML = '<p>Nenhum produto cadastrado ainda.</p>';
-                return;
-            }
+            if (snap.empty) { lista.innerHTML = '<p>Nenhum produto cadastrado ainda.</p>'; return; }
             let html = '';
             snap.forEach((docSnap) => {
                 const d = docSnap.data();
-                html += `
-                    <div class="produto-item">
-                        <div class="info">
-                            <strong>${d.nome}</strong><br>
-                            <small>ID: ${d.id}</small><br>
-                            <small>Mind: ${d.mindUrl}</small><br>
-                            <small>Glb: ${d.glbUrl}</small>
-                        </div>
-                        <button class="btn-del" onclick="deletarProduto('${docSnap.id}')">Excluir</button>
-                    </div>
-                `;
+                html += `<div class="produto-item"><div class="info">
+                    <strong>${d.nome}</strong><br>
+                    <small>ID: ${d.id}</small><br>
+                    <small>Mind: ${d.mindUrl}</small><br>
+                    <small>Glb: ${d.glbUrl}</small>
+                </div><button class="btn-del" onclick="deletarProduto('${docSnap.id}')">Excluir</button></div>`;
             });
             lista.innerHTML = html;
-        } catch (e) {
-            lista.innerHTML = '<p style="color:#e94560;">Erro ao carregar: ' + e.message + '</p>';
-        }
+        } catch (e) { lista.innerHTML = '<p style="color:#e94560;">Erro ao carregar: ' + e.message + '</p>'; }
     }
 
     window.deletarProduto = async function(docId) {
         if (!confirm('Excluir este produto?')) return;
-        try {
-            await deleteDoc(doc(db, 'produtos', docId));
-            carregarProdutos();
-        } catch (e) {
-            alert('Erro ao excluir: ' + e.message);
-        }
+        try { await deleteDoc(doc(db, 'produtos', docId)); carregarProdutos(); }
+        catch (e) { alert('Erro ao excluir: ' + e.message); }
     };
 </script>
-
 </body>
 </html>
