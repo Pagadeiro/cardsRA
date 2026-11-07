@@ -96,17 +96,7 @@ const produto = {
     mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
     glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
 };
-                // Busca no Firestore o produto com esse ID
-                loadingText.textContent = 'Buscando produto no banco de dados...';
-                const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    mostrarErro('Produto não encontrado. Verifique o link.');
-                    return;
-                }
-
-                // Pega os dados do primeiro resultado
+                 // Pega os dados do primeiro resultado
                 const produto = querySnapshot.docs[0].data();
                 
                 loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
