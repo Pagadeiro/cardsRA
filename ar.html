@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Experiência de Realidade Aumentada</title>
+    
+    <!-- A-Frame e MindAR -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- JSZip para descompactar o arquivo .mind que está em ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: #000; }
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #1a1a2e; color: white; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999; text-align: center; padding: 20px;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #e94560;
+            border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #error-msg { color: #e94560; margin-top: 20px; font-weight: bold; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Tela de Carregamento -->
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <h2>Preparando sua experiência...</h2>
+        <p id="loading-text">Buscando informações do produto...</p>
+        <p id="error-msg" class="hidden"></p>
+    </div>
+
+    <!-- Cena AR -->
+    <a-scene id="ar-scene" mindar-image="imageTargetSrc: ;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" class="hidden">
+        <a-assets id="ar-assets"></a-assets>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-entity id="ar-target-entity" mindar-image-target="targetIndex: 0"></a-entity>
+    </a-scene>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        // ============================================================
+        // 🔧 COLE AQUI SUA CONFIGURAÇÃO DO FIREBASE (igual ao admin)
+        // ============================================================
+        const firebaseConfig = {
+        apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
+        authDomain: "cardsra.firebaseapp.com",
+        projectId: "cardsra",
+        storageBucket: "cardsra.firebasestorage.app",
+        messagingSenderId: "815134338089",
+        appId: "1:815134338089:web:30500a2c42cd3be9550038"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const loadingText = document.getElementById('loading-text');
+        const errorMsg = document.getElementById('error-msg');
+
+        // Função para mostrar erro
+        function mostrarErro(texto) {
+            loadingText.classList.add('hidden');
+            errorMsg.classList.remove('hidden');
+            errorMsg.textContent = texto;
+            document.querySelector('.spinner').classList.add('hidden');
+        }
+
+        // Inicia a busca assim que a página carrega
+        window.addEventListener('load', async () => {
+            // Pega o ID da URL (ex: ar.html?id=chloecap)
+            const urlParams = new URLSearchParams(window.location.search);
+            const produtoId = urlParams.get('id');
+
+            if (!produtoId) {
+                mostrarErro('Link inválido. O ID do produto não foi encontrado na URL.');
+                return;
+            }
+
+            try {
+                // Busca no Firestore o produto com esse ID
+                loadingText.textContent = 'Buscando produto no banco de dados...';
+                const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    mostrarErro('Produto não encontrado. Verifique o link.');
+                    return;
+                }
+
+                // Pega os dados do primeiro resultado
+                const produto = querySnapshot.docs[0].data();
+                
+                loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
+                
+                // Baixa o arquivo .zip do GitHub
+                const respostaZip = await fetch(produto.mindUrl);
+                const blobZip = await respostaZip.blob();
+
+                loadingText.textContent = 'Descompactando arquivo...';
+                
+                // Descompacta o .mind usando JSZip
+                const zip = await JSZip.loadAsync(blobZip);
+                // Pega o primeiro arquivo dentro do zip (que deve ser o .mind)
+                const nomeArquivoMind = Object.keys(zip.files)[0]; 
+                const blobMind = await zip.files[nomeArquivoMind].async("blob");
+                
+                // Cria uma URL temporária no navegador para o arquivo .mind
+                const mindBlobUrl = URL.createObjectURL(blobMind);
+
+                loadingText.textContent = 'Carregando modelo 3D...';
+
+                // Agora que temos tudo, inicializa o AR
+                iniciarAR(mindBlobUrl, produto.glbUrl);
+
+            } catch (erro) {
+                console.error(erro);
+                mostrarErro('Ocorreu um erro ao carregar a experiência: ' + erro.message);
+            }
+        });
+
+        function iniciarAR(mindUrl, glbUrl) {
+            const scene = document.getElementById('ar-scene');
+            const assets = document.getElementById('ar-assets');
+            const targetEntity = document.getElementById('ar-target-entity');
+
+            // Configura o MindAR com o arquivo .mind que acabamos de baixar e descompactar
+            scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
+
+            // Adiciona o modelo .glb na cena
+            const assetItem = document.createElement('a-asset-item');
+            assetItem.setAttribute('id', 'ar-model');
+            assetItem.setAttribute('src', glbUrl);
+            assets.appendChild(assetItem);
+
+            const modelEntity = document.createElement('a-gltf-model');
+            modelEntity.setAttribute('src', '#ar-model');
+            modelEntity.setAttribute('position', '0 0 0.5'); // Posição do modelo
+            modelEntity.setAttribute('scale', '1 1 1');      // Tamanho do modelo
+            targetEntity.appendChild(modelEntity);
+
+            // Esconde a tela de carregamento e mostra a câmera
+            document.getElementById('loading-screen').classList.add('hidden');
+            scene.classList.remove('hidden');
+
+            // Avisa o MindAR para começar a processar o vídeo
+            setTimeout(() => {
+                scene.systems['mindar-image-system'].start();
+            }, 500);
+        }
+    </script>
+</body>
+</html>
