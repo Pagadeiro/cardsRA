@@ -87,6 +87,15 @@
             }
 
             try {
+                // Comente a busca no banco
+// const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
+// const querySnapshot = await getDocs(q);
+
+// Defina os dados manualmente para teste
+const produto = {
+    mindUrl: "COLE_AQUI_O_LINK_DO_ZIP_DO_MIND",
+    glbUrl: "COLE_AQUI_O_LINK_DO_GLB"
+};
                 // Busca no Firestore o produto com esse ID
                 loadingText.textContent = 'Buscando produto no banco de dados...';
                 const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
