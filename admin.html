@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Admin AR - Simplificado</title>
+    <title>Painel Admin AR</title>
     <style>
         * { box-sizing: border-box; font-family: Arial, sans-serif; }
         body { background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }
@@ -58,14 +58,17 @@
             <h2>📤 Cadastrar Novo Produto</h2>
             <p style="font-size: 13px; color: #aaa;">Vá no GitHub Releases, faça upload do seu arquivo e cole o link gerado abaixo.</p>
             
+            <label>ID do Link (ex: chloe, convite-ana) - Sem espaços</label>
+            <input type="text" id="prod-id-link" placeholder="chloe">
+
             <label>Nome do Produto (ex: "Convite Ana e João")</label>
             <input type="text" id="prod-nome" placeholder="Nome do produto">
 
             <label>Link do arquivo .mind (ZIP)</label>
-            <input type="https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip" id="prod-mind-link" placeholder="https://github.com/.../targets.mind.zip">
+            <input type="text" id="prod-mind-link" placeholder="https://github.com/.../targets.mind.zip">
 
-            <label>Link do arquivo .glb (ZIP)</label>
-            <input type="https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip" id="prod-glb-link" placeholder="https://github.com/.../modelo.glb">
+            <label>Link do arquivo .glb (modelo 3D)</label>
+            <input type="text" id="prod-glb-link" placeholder="https://github.com/.../modelo.glb">
 
             <button id="btn-salvar" onclick="salvarProduto()">Salvar Produto</button>
             <div id="upload-msg"></div>
@@ -136,13 +139,14 @@
     // SALVAR PRODUTO
     // ============================================================
     window.salvarProduto = async function() {
+        const idLink = document.getElementById('prod-id-link').value.trim().toLowerCase().replace(/\s+/g, '-');
         const nome = document.getElementById('prod-nome').value.trim();
         const mindUrl = document.getElementById('prod-mind-link').value.trim();
         const glbUrl = document.getElementById('prod-glb-link').value.trim();
         const msg = document.getElementById('upload-msg');
         const btn = document.getElementById('btn-salvar');
 
-        if (!nome || !mindUrl || !glbUrl) {
+        if (!idLink || !nome || !mindUrl || !glbUrl) {
             msg.className = 'msg err'; msg.textContent = 'Preencha todos os campos.';
             return;
         }
@@ -151,18 +155,16 @@
         msg.className = 'msg'; msg.textContent = 'Salvando no banco de dados...';
 
         try {
-            // Gera um ID único curto para o produto
-            const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-            
             await addDoc(collection(db, 'produtos'), {
+                idLink: idLink,
                 nome: nome,
                 mindUrl: mindUrl,
                 glbUrl: glbUrl,
-                criadoEm: new Date().toISOString(),
-                id: id // Este ID será usado na URL do cliente (ex: ?id=abc123)
+                criadoEm: new Date().toISOString()
             });
 
             msg.className = 'msg ok'; msg.textContent = 'Produto salvo com sucesso!';
+            document.getElementById('prod-id-link').value = '';
             document.getElementById('prod-nome').value = '';
             document.getElementById('prod-mind-link').value = '';
             document.getElementById('prod-glb-link').value = '';
@@ -193,7 +195,7 @@
                     <div class="produto-item">
                         <div class="info">
                             <strong>${d.nome}</strong>
-                            <small>ID do Link: <b>${d.id}</b></small>
+                            <small>Link para o cliente: <b>ar.html?id=${d.idLink}</b></small>
                             <small>Mind: ${d.mindUrl}</small>
                             <small>Glb: ${d.glbUrl}</small>
                         </div>
@@ -214,4 +216,4 @@
     };
 </script>
 </body>
-</html> 
+</html>
