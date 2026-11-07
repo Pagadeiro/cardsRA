@@ -86,18 +86,22 @@
                 return;
             }
 
-            try {
-                // Comente a busca no banco
-// const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
-// const querySnapshot = await getDocs(q);
+                    try {
+            // Comente a busca no banco
+            // const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
+            // const querySnapshot = await getDocs(q);
 
-// Defina os dados manualmente para teste
-const produto = {
-    mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
-    glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
-};
-                 // Pega os dados do primeiro resultado
-                const produto = querySnapshot.docs[0].data();
+            // Defina os dados manualmente para teste
+            const produto = {
+                mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
+                glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
+            };
+
+            // (Apague a linha 100 que estava aqui)
+
+            loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
+            
+            // ... (o resto do código continua igual)
                 
                 loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
                 
