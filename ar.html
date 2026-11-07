@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Experiência de Realidade Aumentada</title>
     
-    <!-- A-Frame e MindAR -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    <!-- JSZip para descompactar o arquivo .mind que está em ZIP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
@@ -29,15 +27,13 @@
 </head>
 <body>
 
-    <!-- Tela de Carregamento -->
     <div id="loading-screen">
         <div class="spinner"></div>
         <h2>Preparando sua experiência...</h2>
-        <p id="loading-text">Carregando dados de teste...</p>
+        <p id="loading-text">Carregando dados...</p>
         <p id="error-msg" class="hidden"></p>
     </div>
 
-    <!-- Cena AR -->
     <a-scene id="ar-scene" mindar-image="imageTargetSrc: ;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" class="hidden">
         <a-assets id="ar-assets"></a-assets>
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -45,8 +41,6 @@
     </a-scene>
 
     <script>
-        // NÃO PRECISAMOS DO FIREBASE PARA ESTE TESTE
-
         const loadingText = document.getElementById('loading-text');
         const errorMsg = document.getElementById('error-msg');
 
@@ -61,38 +55,42 @@
         window.addEventListener('load', async () => {
             try {
                 // ============================================================
-                // DADOS MANUAIS PARA TESTE (Substituindo a busca no banco)
+                // LINKS DIRETOS (RAW) DOS SEUS ARQUIVOS NO GITHUB
                 // ============================================================
                 const produto = {
-                    mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
-                    glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
+                    mindZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOECAPIVARINHA.zip",
+                    // Note que o %20 no seu link antigo foi substituído por %20 no raw para funcionar
+                    glbZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOETA%20NA%20ESCOLA.zip" 
                 };
                 
                 loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
-                
-                // Baixa o arquivo .zip do GitHub
-                const respostaZip = await fetch(produto.mindUrl);
-                if (!respostaZip.ok) throw new Error("Falha ao baixar o arquivo .mind.zip do GitHub");
-                const blobZip = await respostaZip.blob();
+                const respostaMind = await fetch(produto.mindZipUrl);
+                if (!respostaMind.ok) throw new Error("Falha ao baixar o .zip do .mind. Verifique se o arquivo existe no GitHub.");
+                const blobMindZip = await respostaMind.blob();
 
-                loadingText.textContent = 'Descompactando arquivo...';
-                
-                // Descompacta o .mind usando JSZip
-                const zip = await JSZip.loadAsync(blobZip);
-                const nomeArquivoMind = Object.keys(zip.files)[0]; 
-                const blobMind = await zip.files[nomeArquivoMind].async("blob");
-                
-                // Cria uma URL temporária no navegador para o arquivo .mind
+                loadingText.textContent = 'Descompactando .mind...';
+                const zipMind = await JSZip.loadAsync(blobMindZip);
+                const nomeArquivoMind = Object.keys(zipMind.files)[0]; 
+                const blobMind = await zipMind.files[nomeArquivoMind].async("blob");
                 const mindBlobUrl = URL.createObjectURL(blobMind);
 
-                loadingText.textContent = 'Carregando modelo 3D...';
+                loadingText.textContent = 'Baixando modelo 3D (.glb)...';
+                const respostaGlb = await fetch(produto.glbZipUrl);
+                if (!respostaGlb.ok) throw new Error("Falha ao baixar o .zip do .glb. Verifique se o arquivo existe no GitHub.");
+                const blobGlbZip = await respostaGlb.blob();
 
-                // Inicializa o AR
-                iniciarAR(mindBlobUrl, produto.glbUrl);
+                loadingText.textContent = 'Descompactando modelo 3D...';
+                const zipGlb = await JSZip.loadAsync(blobGlbZip);
+                const nomeArquivoGlb = Object.keys(zipGlb.files)[0];
+                const blobGlb = await zipGlb.files[nomeArquivoGlb].async("blob");
+                const glbBlobUrl = URL.createObjectURL(blobGlb);
+
+                loadingText.textContent = 'Iniciando câmera...';
+                iniciarAR(mindBlobUrl, glbBlobUrl);
 
             } catch (erro) {
                 console.error(erro);
-                mostrarErro('Ocorreu um erro ao carregar: ' + erro.message);
+                mostrarErro('Erro ao carregar: ' + erro.message);
             }
         });
 
@@ -101,10 +99,8 @@
             const assets = document.getElementById('ar-assets');
             const targetEntity = document.getElementById('ar-target-entity');
 
-            // Configura o MindAR com o arquivo .mind
             scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
 
-            // Adiciona o modelo .glb na cena
             const assetItem = document.createElement('a-asset-item');
             assetItem.setAttribute('id', 'ar-model');
             assetItem.setAttribute('src', glbUrl);
@@ -112,15 +108,13 @@
 
             const modelEntity = document.createElement('a-gltf-model');
             modelEntity.setAttribute('src', '#ar-model');
-            modelEntity.setAttribute('position', '0 0 0.5'); // Posição do modelo
-            modelEntity.setAttribute('scale', '1 1 1');      // Tamanho do modelo
+            modelEntity.setAttribute('position', '0 0 0.5');
+            modelEntity.setAttribute('scale', '1 1 1');
             targetEntity.appendChild(modelEntity);
 
-            // Esconde a tela de carregamento e mostra a câmera
             document.getElementById('loading-screen').classList.add('hidden');
             scene.classList.remove('hidden');
 
-            // Inicia o sistema do MindAR
             setTimeout(() => {
                 if (scene.systems['mindar-image-system']) {
                     scene.systems['mindar-image-system'].start();
