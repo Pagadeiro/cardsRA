@@ -33,7 +33,7 @@
     <div id="loading-screen">
         <div class="spinner"></div>
         <h2>Preparando sua experiência...</h2>
-        <p id="loading-text">Buscando informações do produto...</p>
+        <p id="loading-text">Carregando dados de teste...</p>
         <p id="error-msg" class="hidden"></p>
     </div>
 
@@ -44,76 +44,41 @@
         <a-entity id="ar-target-entity" mindar-image-target="targetIndex: 0"></a-entity>
     </a-scene>
 
-    <!-- Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-        // ============================================================
-        // 🔧 COLE AQUI SUA CONFIGURAÇÃO DO FIREBASE (igual ao admin)
-        // ============================================================
-        const firebaseConfig = {
-        apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
-        authDomain: "cardsra.firebaseapp.com",
-        projectId: "cardsra",
-        storageBucket: "cardsra.firebasestorage.app",
-        messagingSenderId: "815134338089",
-        appId: "1:815134338089:web:30500a2c42cd3be9550038"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+    <script>
+        // NÃO PRECISAMOS DO FIREBASE PARA ESTE TESTE
 
         const loadingText = document.getElementById('loading-text');
         const errorMsg = document.getElementById('error-msg');
 
-        // Função para mostrar erro
         function mostrarErro(texto) {
             loadingText.classList.add('hidden');
             errorMsg.classList.remove('hidden');
             errorMsg.textContent = texto;
-            document.querySelector('.spinner').classList.add('hidden');
+            const spinner = document.querySelector('.spinner');
+            if (spinner) spinner.classList.add('hidden');
         }
 
-        // Inicia a busca assim que a página carrega
         window.addEventListener('load', async () => {
-            // Pega o ID da URL (ex: ar.html?id=chloecap)
-            const urlParams = new URLSearchParams(window.location.search);
-            const produtoId = urlParams.get('id');
-
-            if (!produtoId) {
-                mostrarErro('Link inválido. O ID do produto não foi encontrado na URL.');
-                return;
-            }
-
-                    try {
-            // Comente a busca no banco
-            // const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
-            // const querySnapshot = await getDocs(q);
-
-            // Defina os dados manualmente para teste
-            const produto = {
-                mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
-                glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
-            };
-
-            // (Apague a linha 100 que estava aqui)
-
-            loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
-            
-            // ... (o resto do código continua igual)
+            try {
+                // ============================================================
+                // DADOS MANUAIS PARA TESTE (Substituindo a busca no banco)
+                // ============================================================
+                const produto = {
+                    mindUrl: "https://github.com/user-attachments/files/34506171/CHLOECAPIVARINHA.zip",
+                    glbUrl: "https://github.com/user-attachments/files/34506229/CHLOETA.NA.ESCOLA.zip"
+                };
                 
                 loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
                 
                 // Baixa o arquivo .zip do GitHub
                 const respostaZip = await fetch(produto.mindUrl);
+                if (!respostaZip.ok) throw new Error("Falha ao baixar o arquivo .mind.zip do GitHub");
                 const blobZip = await respostaZip.blob();
 
                 loadingText.textContent = 'Descompactando arquivo...';
                 
                 // Descompacta o .mind usando JSZip
                 const zip = await JSZip.loadAsync(blobZip);
-                // Pega o primeiro arquivo dentro do zip (que deve ser o .mind)
                 const nomeArquivoMind = Object.keys(zip.files)[0]; 
                 const blobMind = await zip.files[nomeArquivoMind].async("blob");
                 
@@ -122,12 +87,12 @@
 
                 loadingText.textContent = 'Carregando modelo 3D...';
 
-                // Agora que temos tudo, inicializa o AR
+                // Inicializa o AR
                 iniciarAR(mindBlobUrl, produto.glbUrl);
 
             } catch (erro) {
                 console.error(erro);
-                mostrarErro('Ocorreu um erro ao carregar a experiência: ' + erro.message);
+                mostrarErro('Ocorreu um erro ao carregar: ' + erro.message);
             }
         });
 
@@ -136,7 +101,7 @@
             const assets = document.getElementById('ar-assets');
             const targetEntity = document.getElementById('ar-target-entity');
 
-            // Configura o MindAR com o arquivo .mind que acabamos de baixar e descompactar
+            // Configura o MindAR com o arquivo .mind
             scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
 
             // Adiciona o modelo .glb na cena
@@ -155,9 +120,11 @@
             document.getElementById('loading-screen').classList.add('hidden');
             scene.classList.remove('hidden');
 
-            // Avisa o MindAR para começar a processar o vídeo
+            // Inicia o sistema do MindAR
             setTimeout(() => {
-                scene.systems['mindar-image-system'].start();
+                if (scene.systems['mindar-image-system']) {
+                    scene.systems['mindar-image-system'].start();
+                }
             }, 500);
         }
     </script>
