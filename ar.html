@@ -67,7 +67,9 @@
                 loadingText.textContent = 'Descompactando .mind...';
                 const zipMind = await JSZip.loadAsync(blobMindZip);
                 const nomeArquivoMind = Object.keys(zipMind.files)[0]; 
-                const blobMind = await zipMind.files[nomeArquivoMind].async("blob");
+                // Lê o arquivo como ArrayBuffer (binário puro), que é o formato correto
+                const arrayBufferMind = await zipMind.files[nomeArquivoMind].async("arraybuffer");
+                const blobMind = new Blob([arrayBufferMind], {type: 'application/octet-stream'});
                 const mindBlobUrl = URL.createObjectURL(blobMind);
 
                 loadingText.textContent = 'Baixando modelo 3D (.glb)...';
@@ -78,11 +80,16 @@
                 loadingText.textContent = 'Descompactando modelo 3D...';
                 const zipGlb = await JSZip.loadAsync(blobGlbZip);
                 const nomeArquivoGlb = Object.keys(zipGlb.files)[0];
-                const blobGlb = await zipGlb.files[nomeArquivoGlb].async("blob");
+                const arrayBufferGlb = await zipGlb.files[nomeArquivoGlb].async("arraybuffer");
+                const blobGlb = new Blob([arrayBufferGlb], {type: 'application/octet-stream'});
                 const glbBlobUrl = URL.createObjectURL(blobGlb);
 
                 loadingText.textContent = 'Iniciando câmera...';
-                iniciarAR(mindBlobUrl, glbBlobUrl);
+                
+                // Pequeno delay para garantir que o A-Frame esteja pronto
+                setTimeout(() => {
+                    iniciarAR(mindBlobUrl, glbBlobUrl);
+                }, 300);
 
             } catch (erro) {
                 console.error(erro);
@@ -95,27 +102,36 @@
             const assets = document.getElementById('ar-assets');
             const targetEntity = document.getElementById('ar-target-entity');
 
+            // 1. Configura o arquivo .mind
             scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
 
+            // 2. Adiciona o modelo .glb nos assets
             const assetItem = document.createElement('a-asset-item');
             assetItem.setAttribute('id', 'ar-model');
             assetItem.setAttribute('src', glbUrl);
             assets.appendChild(assetItem);
 
+            // 3. Adiciona o modelo na entidade alvo
             const modelEntity = document.createElement('a-gltf-model');
             modelEntity.setAttribute('src', '#ar-model');
             modelEntity.setAttribute('position', '0 0 0.5');
             modelEntity.setAttribute('scale', '1 1 1');
             targetEntity.appendChild(modelEntity);
 
+            // 4. Esconde a tela de loading e mostra a cena
             document.getElementById('loading-screen').classList.add('hidden');
             scene.classList.remove('hidden');
 
+            // 5. Força a reinicialização do sistema do MindAR
+            // Isso é crucial quando configuramos o imageTargetSrc via JavaScript
             setTimeout(() => {
                 if (scene.systems['mindar-image-system']) {
+                    // Para o sistema se já estiver rodando
+                    try { scene.systems['mindar-image-system'].stop(); } catch(e) {}
+                    // Inicia novamente com as novas configurações
                     scene.systems['mindar-image-system'].start();
                 }
-            }, 500);
+            }, 800);
         }
     </script>
 </body>
