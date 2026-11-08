@@ -30,7 +30,7 @@
     <div id="loading-screen">
         <div class="spinner"></div>
         <h2>Preparando sua experiência...</h2>
-        <p id="loading-text">Buscando informações...</p>
+        <p id="loading-text">Carregando dados...</p>
         <p id="error-msg" class="hidden"></p>
     </div>
 
@@ -40,25 +40,7 @@
         <a-entity id="ar-target-entity" mindar-image-target="targetIndex: 0"></a-entity>
     </a-scene>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-        // ============================================================
-        // 🔧 COLE AQUI SUA CONFIGURAÇÃO DO FIREBASE
-        // ============================================================
-        const firebaseConfig = {
-            apiKey: "COLE_AQUI",
-            authDomain: "COLE_AQUI",
-            projectId: "COLE_AQUI",
-            storageBucket: "COLE_AQUI",
-            messagingSenderId: "COLE_AQUI",
-            appId: "COLE_AQUI"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
+    <script>
         const loadingText = document.getElementById('loading-text');
         const errorMsg = document.getElementById('error-msg');
 
@@ -71,30 +53,15 @@
         }
 
         window.addEventListener('load', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const produtoId = urlParams.get('id');
-
-            if (!produtoId) {
-                mostrarErro('Link inválido. O ID do produto não foi encontrado na URL.');
-                return;
-            }
-
             try {
-                loadingText.textContent = 'Buscando produto no banco de dados...';
-                // Busca no Firestore o produto
-                const q = query(collection(db, 'produtos'), where('idLink', '==', produtoId));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    mostrarErro('Produto não encontrado. Verifique o link.');
-                    return;
-                }
-
-                const produto = querySnapshot.docs[0].data();
+                const produto = {
+                    mindZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOECAPIVARINHA.zip",
+                    glbZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOETA%20NA%20ESCOLA.zip" 
+                };
                 
                 loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
-                const respostaMind = await fetch(produto.mindUrl);
-                if (!respostaMind.ok) throw new Error("Falha ao baixar o .mind do GitHub.");
+                const respostaMind = await fetch(produto.mindZipUrl);
+                if (!respostaMind.ok) throw new Error("Falha ao baixar o .zip do .mind.");
                 const blobMindZip = await respostaMind.blob();
 
                 loadingText.textContent = 'Descompactando .mind...';
@@ -104,8 +71,8 @@
                 const mindBlobUrl = URL.createObjectURL(blobMind);
 
                 loadingText.textContent = 'Baixando modelo 3D (.glb)...';
-                const respostaGlb = await fetch(produto.glbUrl);
-                if (!respostaGlb.ok) throw new Error("Falha ao baixar o .glb do GitHub.");
+                const respostaGlb = await fetch(produto.glbZipUrl);
+                if (!respostaGlb.ok) throw new Error("Falha ao baixar o .zip do .glb.");
                 const blobGlbZip = await respostaGlb.blob();
 
                 loadingText.textContent = 'Descompactando modelo 3D...';
@@ -119,7 +86,7 @@
 
             } catch (erro) {
                 console.error(erro);
-                mostrarErro('Ocorreu um erro: ' + erro.message);
+                mostrarErro('Erro ao carregar: ' + erro.message);
             }
         });
 
