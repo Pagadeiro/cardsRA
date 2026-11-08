@@ -2,218 +2,121 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Admin AR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Experiência de Realidade Aumentada</title>
+    
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <style>
-        * { box-sizing: border-box; font-family: Arial, sans-serif; }
-        body { background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }
-        .container { max-width: 700px; margin: 0 auto; }
-        h1 { color: #e94560; text-align: center; }
-        .card { background: #16213e; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-        label { display: block; margin: 10px 0 5px; font-weight: bold; }
-        input[type="email"], input[type="password"], input[type="text"] {
-            width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #0f3460;
-            background: #0f3460; color: #eee; font-size: 14px; margin-bottom: 10px;
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: #000; }
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #1a1a2e; color: white; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999; text-align: center; padding: 20px;
         }
-        button {
-            background: #e94560; color: white; border: none; padding: 12px 20px;
-            border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold;
-            width: 100%; margin-top: 10px;
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #e94560;
+            border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-        button:hover { background: #c73650; }
-        button:disabled { background: #555; cursor: not-allowed; }
-        .msg { padding: 10px; border-radius: 5px; margin: 10px 0; text-align: center; }
-        .msg.ok { background: #1b5e20; }
-        .msg.err { background: #b71c1c; }
-        .hidden { display: none; }
-        .produto-item {
-            background: #0f3460; padding: 15px; border-radius: 8px;
-            margin-bottom: 10px; display: flex; justify-content: space-between;
-            align-items: center; flex-wrap: wrap; gap: 10px;
-        }
-        .produto-item .info { flex: 1; min-width: 200px; }
-        .produto-item .info small { color: #aaa; word-break: break-all; display: block; margin-top: 5px; }
-        .btn-del { background: #b71c1c; width: auto; padding: 8px 15px; font-size: 12px; margin: 0; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #error-msg { color: #e94560; margin-top: 20px; font-weight: bold; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>⚙️ Painel Admin AR</h1>
-
-    <!-- TELA DE LOGIN -->
-    <div id="login-screen" class="card">
-        <h2>Entrar</h2>
-        <label>E-mail</label>
-        <input type="email" id="login-email" placeholder="seu@email.com">
-        <label>Senha</label>
-        <input type="password" id="login-senha" placeholder="********">
-        <button onclick="fazerLogin()">Entrar</button>
-        <div id="login-msg"></div>
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <h2>Preparando sua experiência...</h2>
+        <p id="loading-text">Carregando dados...</p>
+        <p id="error-msg" class="hidden"></p>
     </div>
 
-    <!-- PAINEL -->
-    <div id="painel-screen" class="hidden">
-        <div class="card">
-            <h2>📤 Cadastrar Novo Produto</h2>
-            <p style="font-size: 13px; color: #aaa;">Vá no GitHub Releases, faça upload do seu arquivo e cole o link gerado abaixo.</p>
-            
-            <label>ID do Link (ex: chloe, convite-ana) - Sem espaços</label>
-            <input type="text" id="prod-id-link" placeholder="chloe">
+    <a-scene id="ar-scene" mindar-image="imageTargetSrc: ;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" class="hidden">
+        <a-assets id="ar-assets"></a-assets>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-entity id="ar-target-entity" mindar-image-target="targetIndex: 0"></a-entity>
+    </a-scene>
 
-            <label>Nome do Produto (ex: "Convite Ana e João")</label>
-            <input type="text" id="prod-nome" placeholder="Nome do produto">
+    <script>
+        const loadingText = document.getElementById('loading-text');
+        const errorMsg = document.getElementById('error-msg');
 
-            <label>Link do arquivo .mind (ZIP)</label>
-            <input type="text" id="prod-mind-link" placeholder="https://github.com/.../targets.mind.zip">
-
-            <label>Link do arquivo .glb (modelo 3D)</label>
-            <input type="text" id="prod-glb-link" placeholder="https://github.com/.../modelo.glb">
-
-            <button id="btn-salvar" onclick="salvarProduto()">Salvar Produto</button>
-            <div id="upload-msg"></div>
-        </div>
-
-        <div class="card">
-            <h2>📋 Produtos Cadastrados</h2>
-            <div id="lista-produtos">Carregando...</div>
-        </div>
-
-        <button onclick="fazerLogout()" style="background:#555; margin-top:10px;">Sair</button>
-    </div>
-</div>
-
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
-        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-    // ============================================================
-    // 🔧 COLE AQUI SUA CONFIGURAÇÃO DO FIREBASE
-    // ============================================================
-    const firebaseConfig = {
-        apiKey: "AIzaSyB70HA4_pKWuUZRW6ZUH3xGOKfx181mByo",
-        authDomain: "cardsra.firebaseapp.com",
-        projectId: "cardsra",
-        storageBucket: "cardsra.firebasestorage.app",
-        messagingSenderId: "815134338089",
-        appId: "1:815134338089:web:30500a2c42cd3be9550038"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // ============================================================
-    // LÓGICA DE LOGIN
-    // ============================================================
-    window.fazerLogin = async function() {
-        const email = document.getElementById('login-email').value;
-        const senha = document.getElementById('login-senha').value;
-        const msg = document.getElementById('login-msg');
-        msg.className = 'msg'; msg.textContent = 'Entrando...';
-        try {
-            await signInWithEmailAndPassword(auth, email, senha);
-            msg.textContent = '';
-        } catch (e) {
-            msg.className = 'msg err'; msg.textContent = 'Erro: ' + e.message;
-        }
-    };
-
-    window.fazerLogout = async function() { await signOut(auth); };
-
-    onAuthStateChanged(auth, (user) => {
-        const loginScreen = document.getElementById('login-screen');
-        const painelScreen = document.getElementById('painel-screen');
-        if (user) {
-            loginScreen.classList.add('hidden'); painelScreen.classList.remove('hidden');
-            carregarProdutos();
-        } else {
-            loginScreen.classList.remove('hidden'); painelScreen.classList.add('hidden');
-        }
-    });
-
-    // ============================================================
-    // SALVAR PRODUTO
-    // ============================================================
-    window.salvarProduto = async function() {
-        const idLink = document.getElementById('prod-id-link').value.trim().toLowerCase().replace(/\s+/g, '-');
-        const nome = document.getElementById('prod-nome').value.trim();
-        const mindUrl = document.getElementById('prod-mind-link').value.trim();
-        const glbUrl = document.getElementById('prod-glb-link').value.trim();
-        const msg = document.getElementById('upload-msg');
-        const btn = document.getElementById('btn-salvar');
-
-        if (!idLink || !nome || !mindUrl || !glbUrl) {
-            msg.className = 'msg err'; msg.textContent = 'Preencha todos os campos.';
-            return;
+        function mostrarErro(texto) {
+            loadingText.classList.add('hidden');
+            errorMsg.classList.remove('hidden');
+            errorMsg.textContent = texto;
+            const spinner = document.querySelector('.spinner');
+            if (spinner) spinner.classList.add('hidden');
         }
 
-        btn.disabled = true;
-        msg.className = 'msg'; msg.textContent = 'Salvando no banco de dados...';
+        window.addEventListener('load', async () => {
+            try {
+                const produto = {
+                    mindZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOECAPIVARINHA.zip",
+                    glbZipUrl: "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOETA%20NA%20ESCOLA.zip" 
+                };
+                
+                loadingText.textContent = 'Baixando arquivo de imagem (.mind)...';
+                const respostaMind = await fetch(produto.mindZipUrl);
+                if (!respostaMind.ok) throw new Error("Falha ao baixar o .zip do .mind.");
+                const blobMindZip = await respostaMind.blob();
 
-        try {
-            await addDoc(collection(db, 'produtos'), {
-                idLink: idLink,
-                nome: nome,
-                mindUrl: mindUrl,
-                glbUrl: glbUrl,
-                criadoEm: new Date().toISOString()
-            });
+                loadingText.textContent = 'Descompactando .mind...';
+                const zipMind = await JSZip.loadAsync(blobMindZip);
+                const nomeArquivoMind = Object.keys(zipMind.files)[0]; 
+                const blobMind = await zipMind.files[nomeArquivoMind].async("blob");
+                const mindBlobUrl = URL.createObjectURL(blobMind);
 
-            msg.className = 'msg ok'; msg.textContent = 'Produto salvo com sucesso!';
-            document.getElementById('prod-id-link').value = '';
-            document.getElementById('prod-nome').value = '';
-            document.getElementById('prod-mind-link').value = '';
-            document.getElementById('prod-glb-link').value = '';
-            carregarProdutos();
-        } catch (e) {
-            msg.className = 'msg err'; msg.textContent = 'Erro ao salvar: ' + e.message;
-        } finally {
-            btn.disabled = false;
-        }
-    };
+                loadingText.textContent = 'Baixando modelo 3D (.glb)...';
+                const respostaGlb = await fetch(produto.glbZipUrl);
+                if (!respostaGlb.ok) throw new Error("Falha ao baixar o .zip do .glb.");
+                const blobGlbZip = await respostaGlb.blob();
 
-    // ============================================================
-    // LISTAR PRODUTOS
-    // ============================================================
-    async function carregarProdutos() {
-        const lista = document.getElementById('lista-produtos');
-        lista.innerHTML = 'Carregando...';
-        try {
-            const snap = await getDocs(collection(db, 'produtos'));
-            if (snap.empty) {
-                lista.innerHTML = '<p>Nenhum produto cadastrado ainda.</p>';
-                return;
+                loadingText.textContent = 'Descompactando modelo 3D...';
+                const zipGlb = await JSZip.loadAsync(blobGlbZip);
+                const nomeArquivoGlb = Object.keys(zipGlb.files)[0];
+                const blobGlb = await zipGlb.files[nomeArquivoGlb].async("blob");
+                const glbBlobUrl = URL.createObjectURL(blobGlb);
+
+                loadingText.textContent = 'Iniciando câmera...';
+                iniciarAR(mindBlobUrl, glbBlobUrl);
+
+            } catch (erro) {
+                console.error(erro);
+                mostrarErro('Erro ao carregar: ' + erro.message);
             }
-            let html = '';
-            snap.forEach((docSnap) => {
-                const d = docSnap.data();
-                html += `
-                    <div class="produto-item">
-                        <div class="info">
-                            <strong>${d.nome}</strong>
-                            <small>Link para o cliente: <b>ar.html?id=${d.idLink}</b></small>
-                            <small>Mind: ${d.mindUrl}</small>
-                            <small>Glb: ${d.glbUrl}</small>
-                        </div>
-                        <button class="btn-del" onclick="deletarProduto('${docSnap.id}')">Excluir</button>
-                    </div>
-                `;
-            });
-            lista.innerHTML = html;
-        } catch (e) {
-            lista.innerHTML = '<p style="color:#e94560;">Erro ao carregar: ' + e.message + '</p>';
-        }
-    }
+        });
 
-    window.deletarProduto = async function(docId) {
-        if (!confirm('Excluir este produto?')) return;
-        try { await deleteDoc(doc(db, 'produtos', docId)); carregarProdutos(); }
-        catch (e) { alert('Erro ao excluir: ' + e.message); }
-    };
-</script>
+        function iniciarAR(mindUrl, glbUrl) {
+            const scene = document.getElementById('ar-scene');
+            const assets = document.getElementById('ar-assets');
+            const targetEntity = document.getElementById('ar-target-entity');
+
+            scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
+
+            const assetItem = document.createElement('a-asset-item');
+            assetItem.setAttribute('id', 'ar-model');
+            assetItem.setAttribute('src', glbUrl);
+            assets.appendChild(assetItem);
+
+            const modelEntity = document.createElement('a-gltf-model');
+            modelEntity.setAttribute('src', '#ar-model');
+            modelEntity.setAttribute('position', '0 0 0.5');
+            modelEntity.setAttribute('scale', '1 1 1');
+            targetEntity.appendChild(modelEntity);
+
+            document.getElementById('loading-screen').classList.add('hidden');
+            scene.classList.remove('hidden');
+
+            setTimeout(() => {
+                if (scene.systems['mindar-image-system']) {
+                    scene.systems['mindar-image-system'].start();
+                }
+            }, 500);
+        }
+    </script>
 </body>
 </html>
