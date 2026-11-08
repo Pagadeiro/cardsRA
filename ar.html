@@ -22,80 +22,120 @@
             padding: 15px 40px; font-size: 20px; background: #e94560; color: white;
             border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; font-weight: bold;
         }
-        #loading { display: none; margin-top: 20px; font-size: 16px; color: #aaa; }
+        #status-text { margin-top: 20px; font-size: 16px; color: #4CAF50; font-weight: bold; }
+        #error-text { margin-top: 10px; font-size: 14px; color: #e94560; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
+    <!-- Tela Inicial -->
     <div id="start-overlay">
         <h2>Realidade Aumentada</h2>
         <p>Toque no botão abaixo e permita o acesso à câmera.</p>
         <button id="start-btn">Iniciar AR</button>
-        <div id="loading">Baixando arquivos... Aguarde.</div>
+        <div id="status-text"></div>
+        <div id="error-text"></div>
     </div>
+
+    <!-- A Cena AR já está no HTML, mas escondida -->
+    <a-scene
+        id="ar-scene"
+        mindar-image="imageTargetSrc: ;"
+        color-space="sRGB"
+        renderer="colorManagement: true, physicallyCorrectLights"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+        class="hidden">
+
+        <a-assets id="ar-assets">
+            <a-asset-item id="modelo3d" src=""></a-asset-item>
+        </a-assets>
+
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <a-entity mindar-image-target="targetIndex: 0">
+            <a-gltf-model src="#modelo3d" position="0 0 0.5" scale="1 1 1"></a-gltf-model>
+        </a-entity>
+    </a-scene>
 
     <script>
         document.getElementById('start-btn').addEventListener('click', async () => {
             const btn = document.getElementById('start-btn');
-            const loading = document.getElementById('loading');
+            const statusText = document.getElementById('status-text');
+            const errorText = document.getElementById('error-text');
             
-            // Esconde o botão e mostra o aviso de carregamento
             btn.style.display = 'none';
-            loading.style.display = 'block';
+            statusText.innerText = "Solicitando permissões...";
 
             try {
-                // 1. Pedir permissão de movimento (necessário para iOS)
+                // 1. Permissão de Movimento (iOS)
                 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     await DeviceMotionEvent.requestPermission();
                 }
 
-                // 2. Pedir permissão da câmera
+                // 2. Permissão de Câmera
                 await navigator.mediaDevices.getUserMedia({ video: true });
 
-                // 3. Links RAW dos seus arquivos .zip
+                // 3. Links dos seus arquivos ZIP no GitHub (Raw)
                 const urlMindZip = "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOECAPIVARINHA.zip";
                 const urlGlbZip = "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOETA%20NA%20ESCOLA.zip";
 
-                loading.innerText = "Baixando imagem (.mind)...";
+                // --- Processando .MIND ---
+                statusText.innerText = "Baixando imagem (.mind)...";
                 const resMind = await fetch(urlMindZip);
                 const blobMindZip = await resMind.blob();
+                
+                statusText.innerText = "Descompactando imagem...";
                 const zipMind = await JSZip.loadAsync(blobMindZip);
-                const nomeMind = Object.keys(zipMind.files)[0];
+                const nomeMind = Object.keys(zipMind.files).find(nome => !zipMind.files[nome].dir); // Pega o primeiro arquivo válido
                 const blobMind = await zipMind.files[nomeMind].async("blob");
                 const mindUrl = URL.createObjectURL(blobMind);
 
-                loading.innerText = "Baixando modelo 3D (.glb)...";
+                // --- Processando .GLB ---
+                statusText.innerText = "Baixando modelo 3D (.glb)...";
                 const resGlb = await fetch(urlGlbZip);
                 const blobGlbZip = await resGlb.blob();
+                
+                statusText.innerText = "Descompactando modelo 3D...";
                 const zipGlb = await JSZip.loadAsync(blobGlbZip);
-                const nomeGlb = Object.keys(zipGlb.files)[0];
+                const nomeGlb = Object.keys(zipGlb.files).find(nome => !zipGlb.files[nome].dir);
                 const blobGlb = await zipGlb.files[nomeGlb].async("blob");
                 const glbUrl = URL.createObjectURL(blobGlb);
 
-                loading.innerText = "Iniciando câmera...";
-                
-                // 4. Cria a cena AR dinamicamente para evitar bugs do MindAR
-                const sceneHTML = `
-                    <a-scene mindar-image="imageTargetSrc: ${mindUrl};" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-                        <a-assets>
-                            <a-asset-item id="modelo3d" src="${glbUrl}"></a-asset-item>
-                        </a-assets>
-                        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-                        <a-entity mindar-image-target="targetIndex: 0">
-                            <a-gltf-model src="#modelo3d" position="0 0 0.5" scale="1 1 1"></a-gltf-model>
-                        </a-entity>
-                    </a-scene>
-                `;
+                statusText.innerText = "Preparando câmera...";
 
-                // Insere a cena no HTML
-                document.body.insertAdjacentHTML('beforeend', sceneHTML);
+                // 4. Injeta os dados na cena estática
+                const scene = document.getElementById('ar-scene');
+                const assetItem = document.getElementById('modelo3d');
+
+                // Atualiza o .mind
+                scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
                 
-                // Remove a tela inicial
-                document.getElementById('start-overlay').style.display = 'none';
+                // Atualiza o .glb
+                assetItem.setAttribute('src', glbUrl);
+
+                // Espera o asset carregar e inicia
+                assetItem.addEventListener('loaded', () => {
+                    statusText.innerText = "Iniciando câmera...";
+                    
+                    // Mostra a cena e esconde a tela inicial
+                    document.getElementById('start-overlay').style.display = 'none';
+                    scene.classList.remove('hidden');
+
+                    // Inicia o MindAR
+                    setTimeout(() => {
+                        if (scene.systems['mindar-image-system']) {
+                            scene.systems['mindar-image-system'].start();
+                        }
+                    }, 500);
+                });
 
             } catch (error) {
-                loading.innerText = "Erro: " + error.message;
-                loading.style.color = "#e94560";
+                console.error(error);
+                statusText.innerText = "";
+                errorText.innerText = "Erro: " + error.message;
+                btn.style.display = 'block';
             }
         });
     </script>
