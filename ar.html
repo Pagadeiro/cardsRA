@@ -5,15 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Experiência de Realidade Aumentada</title>
 
-    <!-- Bibliotecas Essenciais -->
+    <!-- Bibliotecas do A-Frame e MindAR -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    <!-- JSZip para descompactar os arquivos .zip -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a2e; }
-        
+        /* Tela de carregamento simples */
         #loading {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #1a1a2e; color: white; display: flex;
@@ -21,13 +19,11 @@
             font-family: Arial, sans-serif; font-size: 18px;
             z-index: 9999; flex-direction: column; text-align: center; padding: 20px;
         }
-        
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #e94560;
             border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
         .hidden { display: none !important; }
         #error-msg { color: #e94560; font-weight: bold; margin-top: 15px; }
     </style>
@@ -37,108 +33,43 @@
     <!-- Tela de Carregamento -->
     <div id="loading">
         <div class="spinner"></div>
-        <p id="loading-text">Baixando e preparando sua experiência...<br>Aguarde.</p>
+        <p id="loading-text">Carregando experiência...</p>
         <p id="error-msg" class="hidden"></p>
     </div>
 
-    <!-- Cena AR (será configurada via JavaScript) -->
+    <!-- Cena AR com os links DIRETOS no HTML -->
     <a-scene
         id="ar-scene"
-        mindar-image="imageTargetSrc: ;"
+        mindar-image="imageTargetSrc: https://files.catbox.moe/3y1w7f.mind;"
         color-space="sRGB"
         renderer="colorManagement: true, physicallyCorrectLights"
         vr-mode-ui="enabled: false"
-        device-orientation-permission-ui="enabled: false"
-        class="hidden">
+        device-orientation-permission-ui="enabled: false">
 
-        <a-assets id="ar-assets"></a-assets>
+        <!-- Carrega o modelo GLB direto do link -->
+        <a-assets>
+            <a-asset-item id="modelo3d" src="https://files.catbox.moe/s6wy14.glb"></a-asset-item>
+        </a-assets>
+
+        <!-- Câmera do celular -->
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-        <a-entity id="ar-target-entity" mindar-image-target="targetIndex: 0"></a-entity>
+
+        <!-- Alvo (a imagem que será reconhecida) -->
+        <a-entity mindar-image-target="targetIndex: 0">
+            <a-gltf-model src="#modelo3d" position="0 0 0.5" scale="1 1 1"></a-gltf-model>
+        </a-entity>
+
     </a-scene>
 
     <script>
-        const loadingText = document.getElementById('loading-text');
-        const errorMsg = document.getElementById('error-msg');
-
-        function mostrarErro(texto) {
-            loadingText.classList.add('hidden');
-            errorMsg.classList.remove('hidden');
-            errorMsg.textContent = texto;
-            const spinner = document.querySelector('.spinner');
-            if (spinner) spinner.style.display = 'none';
-        }
-
-        window.addEventListener('load', async () => {
-            try {
-                // ⚠️ LINKS RAW CONVERTIDOS AUTOMATICAMENTE DOS SEUS ARQUIVOS
-                const urlMindZip = "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOECAPIVARINHA.zip";
-                const urlGlbZip = "https://raw.githubusercontent.com/Pagadeiro/cardsRA/main/CHLOETA%20NA%20ESCOLA.zip";
-
-                // 1. Baixar e descompactar o arquivo .mind
-                loadingText.innerHTML = 'Baixando arquivo de imagem (.mind)...';
-                const respostaMind = await fetch(urlMindZip);
-                if (!respostaMind.ok) throw new Error("Falha ao baixar o .zip do .mind do GitHub.");
-                const blobMindZip = await respostaMind.blob();
-                
-                const zipMind = await JSZip.loadAsync(blobMindZip);
-                const nomeArquivoMind = Object.keys(zipMind.files)[0]; 
-                const blobMind = await zipMind.files[nomeArquivoMind].async("blob");
-                const mindBlobUrl = URL.createObjectURL(blobMind);
-
-                // 2. Baixar e descompactar o arquivo .glb
-                loadingText.innerHTML = 'Baixando modelo 3D (.glb)...';
-                const respostaGlb = await fetch(urlGlbZip);
-                if (!respostaGlb.ok) throw new Error("Falha ao baixar o .zip do .glb do GitHub.");
-                const blobGlbZip = await respostaGlb.blob();
-                
-                const zipGlb = await JSZip.loadAsync(blobGlbZip);
-                const nomeArquivoGlb = Object.keys(zipGlb.files)[0];
-                const blobGlb = await zipGlb.files[nomeArquivoGlb].async("blob");
-                const glbBlobUrl = URL.createObjectURL(blobGlb);
-
-                // 3. Iniciar a Realidade Aumentada
-                loadingText.innerHTML = 'Iniciando câmera...';
-                iniciarAR(mindBlobUrl, glbBlobUrl);
-
-            } catch (erro) {
-                console.error(erro);
-                mostrarErro('Erro: ' + erro.message);
-            }
-        });
-
-        function iniciarAR(mindUrl, glbUrl) {
-            const scene = document.getElementById('ar-scene');
-            const assets = document.getElementById('ar-assets');
-            const targetEntity = document.getElementById('ar-target-entity');
-
-            // Configura o MindAR com o arquivo .mind descompactado
-            scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl};`);
-
-            // Adiciona o modelo 3D nos assets da cena
-            const assetItem = document.createElement('a-asset-item');
-            assetItem.setAttribute('id', 'ar-model');
-            assetItem.setAttribute('src', glbUrl);
-            assets.appendChild(assetItem);
-
-            // Adiciona o modelo 3D na entidade que será ancorada na imagem
-            const modelEntity = document.createElement('a-gltf-model');
-            modelEntity.setAttribute('src', '#ar-model');
-            modelEntity.setAttribute('position', '0 0 0.5');
-            modelEntity.setAttribute('scale', '1 1 1');
-            targetEntity.appendChild(modelEntity);
-
-            // Esconde a tela de carregamento e mostra a câmera
+        // Apenas esconde a tela de loading quando a cena do A-Frame estiver pronta
+        const scene = document.querySelector('a-scene');
+        if (scene.hasLoaded) {
             document.getElementById('loading').classList.add('hidden');
-            scene.classList.remove('hidden');
-
-            // Força a inicialização do sistema do MindAR após a cena estar pronta
-            setTimeout(() => {
-                if (scene.systems['mindar-image-system']) {
-                    // Para o sistema se já estiver rodando e inicia novamente
-                    try { scene.systems['mindar-image-system'].stop(); } catch(e) {}
-                    scene.systems['mindar-image-system'].start();
-                }
-            }, 1000); // 1 segundo de delay para garantir que tudo carregou
+        } else {
+            scene.addEventListener('loaded', () => {
+                document.getElementById('loading').classList.add('hidden');
+            });
         }
     </script>
 
